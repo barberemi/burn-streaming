@@ -1,0 +1,36 @@
+services:
+
+  # ── Service Whisper (Python + faster-whisper) ──────────────────────────────
+  whisper:
+    build: ./whisper-service
+    environment:
+      WHISPER_MODEL: medium    # tiny/base/small/medium/large-v3
+      WHISPER_DEVICE: cpu      # cpu ou cuda si GPU dispo
+      WHISPER_COMPUTE: int8    # int8 = rapide sur CPU
+      WHISPER_TASK: transcribe  # translate → anglais | transcribe → langue source
+      WHISPER_LANG: en         # langue parlée du stream (en, fr, es, de, zh, ja…)
+      #WHISPER_TASK: translate
+      #WHISPER_LANG: zh
+    volumes:
+      - whisper-cache:/root/.cache/huggingface  # cache du modèle entre redémarrages
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 120s  # le modèle peut mettre du temps à charger
+
+  # ── API Rust ───────────────────────────────────────────────────────────────
+  api:
+    build: ./api
+    ports:
+      - "3000:3000"
+    environment:
+      WHISPER_URL: http://whisper:8000
+      RUST_LOG: info
+    depends_on:
+      whisper:
+        condition: service_healthy
+
+volumes:
+  whisper-cache:
